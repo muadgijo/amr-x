@@ -42,20 +42,20 @@ try:
     if all(firebase_config.values()):
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred)
-        print("✅ Firebase initialized successfully with environment variables")
+        print("Firebase initialized successfully with environment variables")
     else:
         # Fallback to service account key file if environment variables are not set
         if os.path.exists('serviceAccountKey.json'):
             cred = credentials.Certificate('serviceAccountKey.json')
             firebase_admin.initialize_app(cred)
-            print("✅ Firebase initialized successfully with service account key file")
+            print("Firebase initialized successfully with service account key file")
         else:
-            print("⚠️ Firebase configuration not found. Running without database.")
+            print("Firebase configuration not found. Running without database.")
             firebase_admin.initialize_app()
     
     db = firestore.client()
 except Exception as e:
-    print(f"❌ Firebase initialization failed: {e}")
+    print(f"Firebase initialization failed: {e}")
     db = None
 
 def sanitize_input(text):
@@ -173,8 +173,8 @@ def get_dashboard_stats():
         total_entries = public_count + pharmacist_count
         
         # Get recent submissions
-        recent_public = list(db.collection('public_submissions').order_by('timestamp', direction=firestore.DESCENDING).limit(5).stream())
-        recent_pharmacist = list(db.collection('pharmacist_submissions').order_by('timestamp', direction=firestore.DESCENDING).limit(5).stream())
+        recent_public = list(db.collection('public_submissions').limit(5).stream())
+        recent_pharmacist = list(db.collection('pharmacist_submissions').limit(5).stream())
         
         # Process recent submissions
         recent_submissions = []

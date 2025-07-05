@@ -1,0 +1,27 @@
+{
+  "name": "pro",
+  "version": "1.0.0",
+  "description": "A comprehensive platform to track, analyze, and combat Antimicrobial Resistance (AMR) worldwide.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd amrx-flask-backend && python app.py",
+    "frontend": "cd amrx && npm run dev",
+    "install-all": "npm install && cd amrx && npm install && cd ../amrx-flask-backend && pip install -r requirements.txt"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muadgijo/amr-x.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/muadgijo/amr-x/issues"
+  },
+  "homepage": "https://github.com/muadgijo/amr-x#readme",
+  "dependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

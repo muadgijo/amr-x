@@ -283,7 +283,8 @@ function PublicForm() {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/public', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${API_BASE_URL}/api/public`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -473,16 +474,17 @@ function PharmacistUpload() {
     setLoading(true);
     try {
       let res, data;
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       if (csvFile) {
         const form = new FormData();
         form.append('csv', csvFile);
-        res = await fetch('http://localhost:5000/api/pharmacist/csv', {
+        res = await fetch(`${API_BASE_URL}/api/pharmacist/csv`, {
           method: 'POST',
           body: form
         });
         data = await res.json();
       } else {
-        res = await fetch('http://localhost:5000/api/pharmacist', {
+        res = await fetch(`${API_BASE_URL}/api/pharmacist`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -655,7 +657,8 @@ function Dashboard() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('http://localhost:5000/api/dashboard');
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${API_BASE_URL}/api/dashboard`);
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
