@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { ThemeProvider } from './components/ThemeContext';
 import { AuthProvider, useAuth } from './components/auth/AuthProvider';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -11,57 +11,97 @@ import { PharmacistDashboard } from './components/pharmacist/PharmacistDashboard
 import { Footer } from './components/Footer';
 import { ParticleEffect } from './components/ParticleEffect';
 import { PublicDashboard } from './components/PublicDashboard';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// Error Boundary Component
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+// Lazy load components for better performance
+const LazyPublicDashboard = lazy(() => import('./components/PublicDashboard').then(module => ({ default: module.PublicDashboard })));
+const LazyPharmacistDashboard = lazy(() => import('./components/pharmacist/PharmacistDashboard').then(module => ({ default: module.PharmacistDashboard })));
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('App Error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h1>
-            <p className="text-red-500 mb-4">{this.state.error?.message}</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Reload Page
-            </button>
-          </div>
+// Enhanced Error Boundary Component
+const AppErrorFallback = ({ error, retryCount, maxRetries, onRetry, onReset, onReload, onGoHome }) => (
+  <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 dark:from-gray-900 dark:to-red-900 flex items-center justify-center p-4">
+    <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border border-red-200 dark:border-red-800">
+      <div className="text-center">
+        <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6">
+          <span className="text-3xl" role="img" aria-label="Error">⚠️</span>
         </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
+        <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
+          Application Error
+        </h1>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">
+          {error?.message || 'An unexpected error occurred in the application'}
+        </p>
+        <div className="space-y-3">
+          {retryCount < maxRetries && (
+            <button 
+              onClick={onRetry}
+              className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-300"
+            >
+              Try Again ({retryCount + 1}/{maxRetries})
+            </button>
+          )}
+          <button 
+            onClick={onReset}
+            className="w-full px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-semibold transition-colors duration-300"
+          >
+            Reset Application
+          </button>
+          <button 
+            onClick={onReload}
+            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-300"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 // Main App Component with Authentication
 function AppContent() {
   const [currentView, setCurrentView] = useState('landing');
   const [userType, setUserType] = useState(null);
   const [publicSubmitted, setPublicSubmitted] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // Only redirect to dashboard if user is authenticated
-    if (user && currentView === 'landing') {
-      setCurrentView('pharmacist-dashboard');
-    }
+    // Initialize app state
+    const initializeApp = async () => {
+      try {
+        // Check for any stored state
+        const storedView = localStorage.getItem('amr-current-view');
+        const storedUserType = localStorage.getItem('amr-user-type');
+        
+        if (storedView && storedUserType) {
+          setCurrentView(storedView);
+          setUserType(storedUserType);
+        }
+        
+        // Only redirect to dashboard if user is authenticated
+        if (user && currentView === 'landing') {
+          setCurrentView('pharmacist-dashboard');
+        }
+      } catch (error) {
+        console.error('App initialization error:', error);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeApp();
   }, [user, currentView]);
+
+  // Store current view in localStorage
+  useEffect(() => {
+    if (!isInitializing) {
+      localStorage.setItem('amr-current-view', currentView);
+      if (userType) {
+        localStorage.setItem('amr-user-type', userType);
+      }
+    }
+  }, [currentView, userType, isInitializing]);
 
   const handleGetStarted = () => {
     setCurrentView('user-selection');
@@ -88,6 +128,8 @@ function AppContent() {
 
   const handleLogout = () => {
     setCurrentView('landing');
+    localStorage.removeItem('amr-current-view');
+    localStorage.removeItem('amr-user-type');
   };
 
   const handleBackToSelection = () => {
@@ -102,10 +144,12 @@ function AppContent() {
   const handlePublicBackToHome = () => {
     setPublicSubmitted(false);
     setCurrentView('landing');
+    localStorage.removeItem('amr-current-view');
+    localStorage.removeItem('amr-user-type');
   };
 
-  // Show loading screen only during auth check
-  if (authLoading) {
+  // Show loading screen during auth check or initialization
+  if (authLoading || isInitializing) {
     return <LoadingScreen />;
   }
 
@@ -123,52 +167,59 @@ function AppContent() {
         <ParticleEffect />
       </div>
 
-      {currentView === 'landing' && (
-        <LandingPage onGetStarted={handleGetStarted} />
-      )}
+      {/* Route-based rendering with Suspense for lazy-loaded components */}
+      <Suspense fallback={<LoadingScreen />}>
+        {currentView === 'landing' && (
+          <LandingPage onGetStarted={handleGetStarted} />
+        )}
 
-      {currentView === 'user-selection' && (
-        <UserSelection onSelectUserType={handleUserTypeSelection} />
-      )}
+        {currentView === 'user-selection' && (
+          <UserSelection onSelectUserType={handleUserTypeSelection} />
+        )}
 
-      {currentView === 'public-form' && (
-        <>
-          <Header userType="public" />
-          <main className="container mx-auto px-4 py-8 relative z-10">
-            <PublicForm onSuccess={handlePublicSubmitSuccess} />
-          </main>
-          <Footer />
-        </>
-      )}
+        {currentView === 'public-form' && (
+          <>
+            <Header userType="public" />
+            <main className="container mx-auto px-4 py-8 relative z-10">
+              <PublicForm onSuccess={handlePublicSubmitSuccess} />
+            </main>
+            <Footer />
+          </>
+        )}
 
-      {currentView === 'public-dashboard' && (
-        <PublicDashboard 
-          onBackToHome={handlePublicBackToHome}
-          onSubmitAgain={handlePublicSubmitAgain}
-        />
-      )}
+        {currentView === 'public-dashboard' && (
+          <PublicDashboard 
+            onBackToHome={handlePublicBackToHome}
+            onSubmitAgain={handlePublicSubmitAgain}
+          />
+        )}
 
-      {currentView === 'auth' && (
-        <AuthPage 
-          onAuthSuccess={handleAuthSuccess}
-          onBackToSelection={handleBackToSelection}
-        />
-      )}
+        {currentView === 'auth' && (
+          <AuthPage 
+            onAuthSuccess={handleAuthSuccess}
+            onBackToSelection={handleBackToSelection}
+          />
+        )}
 
-      {currentView === 'pharmacist-dashboard' && user && (
-        <PharmacistDashboard 
-          pharmacist={user}
-          onLogout={handleLogout}
-        />
-      )}
+        {currentView === 'pharmacist-dashboard' && user && (
+          <PharmacistDashboard 
+            pharmacist={user}
+            onLogout={handleLogout}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
 
-// Main App Component with AuthProvider wrapper
+// Main App Component with ErrorBoundary and AuthProvider wrapper
 export default function App() {
   return (
-    <ErrorBoundary>
+    <ErrorBoundary 
+      fallback={<AppErrorFallback />}
+      maxRetries={3}
+      showDetails={import.meta.env.DEV}
+    >
       <ThemeProvider>
         <AuthProvider>
           <AppContent />
