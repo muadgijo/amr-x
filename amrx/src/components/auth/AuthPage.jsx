@@ -11,13 +11,11 @@ export const AuthPage = ({ onBackToSelection, onAuthSuccess }) => {
   const loginValidationRules = {
     email: {
       required: 'Email is required',
-      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: 'Please enter a valid email address'
+      pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Please enter a valid email address' }
     },
     password: {
       required: 'Password is required',
-      min: 6,
-      message: 'Password must be at least 6 characters'
+      minLength: { value: 6, message: 'Password must be at least 6 characters' }
     }
   };
 
@@ -25,13 +23,11 @@ export const AuthPage = ({ onBackToSelection, onAuthSuccess }) => {
     name: { required: 'Full name is required' },
     email: {
       required: 'Email is required',
-      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: 'Please enter a valid email address'
+      pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Please enter a valid email address' }
     },
     password: {
       required: 'Password is required',
-      min: 6,
-      message: 'Password must be at least 6 characters'
+      minLength: { value: 6, message: 'Password must be at least 6 characters' }
     },
     confirmPassword: {
       required: 'Please confirm your password'

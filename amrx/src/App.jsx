@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo } from 'react';
 import { ThemeProvider } from './components/ThemeContext';
 import { AuthProvider, useAuth } from './components/auth/AuthProvider';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -60,123 +60,115 @@ const AppErrorFallback = ({ error, retryCount, maxRetries, onRetry, onReset, onR
 
 // Main App Component with Authentication
 function AppContent() {
+  // All hooks must be declared at the top, before any return
   const [currentView, setCurrentView] = useState('landing');
   const [userType, setUserType] = useState(null);
   const [publicSubmitted, setPublicSubmitted] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, initialized } = useAuth();
 
-  useEffect(() => {
-    // Initialize app state
-    const initializeApp = async () => {
-      try {
-        // Check for any stored state
-        const storedView = localStorage.getItem('amr-current-view');
-        const storedUserType = localStorage.getItem('amr-user-type');
-        
-        if (storedView && storedUserType) {
-          setCurrentView(storedView);
-          setUserType(storedUserType);
-        }
-        
-        // Only redirect to dashboard if user is authenticated
-        if (user && currentView === 'landing') {
-          setCurrentView('pharmacist-dashboard');
-        }
-      } catch (error) {
-        console.error('App initialization error:', error);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-
-    initializeApp();
-  }, [user, currentView]);
-
-  // Store current view in localStorage
-  useEffect(() => {
-    if (!isInitializing) {
-      localStorage.setItem('amr-current-view', currentView);
-      if (userType) {
-        localStorage.setItem('amr-user-type', userType);
-      }
-    }
-  }, [currentView, userType, isInitializing]);
-
-  const handleGetStarted = () => {
+  // Memoize handlers to prevent unnecessary re-renders
+  const handleGetStarted = useCallback(() => {
     setCurrentView('user-selection');
-  };
+    localStorage.setItem('amr-current-view', 'user-selection');
+  }, []);
 
-  const handleUserTypeSelection = (type) => {
+  const handleUserTypeSelection = useCallback((type) => {
     setUserType(type);
     setPublicSubmitted(false);
+    localStorage.setItem('amr-user-type', type);
     if (type === 'public') {
       setCurrentView('public-form');
+      localStorage.setItem('amr-current-view', 'public-form');
     } else if (type === 'pharmacist') {
       setCurrentView('auth');
+      localStorage.setItem('amr-current-view', 'auth');
     }
-  };
+  }, []);
 
-  const handlePublicSubmitSuccess = () => {
+  const handlePublicSubmitSuccess = useCallback(() => {
     setPublicSubmitted(true);
     setCurrentView('public-dashboard');
-  };
+    localStorage.setItem('amr-current-view', 'public-dashboard');
+  }, []);
 
-  const handleAuthSuccess = (userData) => {
+  const handleAuthSuccess = useCallback((userData) => {
     setCurrentView('pharmacist-dashboard');
-  };
+    localStorage.setItem('amr-current-view', 'pharmacist-dashboard');
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setCurrentView('landing');
+    setUserType(null);
+    setPublicSubmitted(false);
     localStorage.removeItem('amr-current-view');
     localStorage.removeItem('amr-user-type');
-  };
+  }, []);
 
-  const handleBackToSelection = () => {
+  const handleBackToSelection = useCallback(() => {
     setCurrentView('user-selection');
-  };
+    localStorage.setItem('amr-current-view', 'user-selection');
+  }, []);
 
-  const handlePublicSubmitAgain = () => {
+  const handlePublicSubmitAgain = useCallback(() => {
     setPublicSubmitted(false);
     setCurrentView('public-form');
-  };
+    localStorage.setItem('amr-current-view', 'public-form');
+  }, []);
 
-  const handlePublicBackToHome = () => {
+  const handlePublicBackToHome = useCallback(() => {
     setPublicSubmitted(false);
     setCurrentView('landing');
+    setUserType(null);
     localStorage.removeItem('amr-current-view');
     localStorage.removeItem('amr-user-type');
-  };
+  }, []);
 
-  // Show loading screen during auth check or initialization
-  if (authLoading || isInitializing) {
+  // Memoize the background component to prevent re-renders
+  const backgroundComponent = useMemo(() => (
+    <div className="fixed inset-0 -z-10">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-green-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900"></div>
+      <div className="absolute inset-0">
+        <div className="absolute top-20 left-20 w-72 h-72 bg-blue-300 dark:bg-blue-600 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+        <div className="absolute top-40 right-20 w-72 h-72 bg-green-300 dark:bg-green-600 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-purple-300 dark:bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+      </div>
+      <ParticleEffect />
+    </div>
+  ), []);
+
+  // Initialize app state from localStorage
+  useEffect(() => {
+    if (initialized && !authLoading) {
+      const savedView = localStorage.getItem('amr-current-view');
+      const savedUserType = localStorage.getItem('amr-user-type');
+      if (savedView && savedUserType) {
+        setCurrentView(savedView);
+        setUserType(savedUserType);
+      }
+      // If user is authenticated, go to pharmacist dashboard
+      if (user) {
+        setCurrentView('pharmacist-dashboard');
+      }
+    }
+  }, [initialized, authLoading, user]);
+
+  // Show loading screen during auth check
+  if (authLoading || !initialized) {
     return <LoadingScreen />;
   }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 relative overflow-hidden">
       {/* Enhanced Animated Background */}
-      <div className="fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-green-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900"></div>
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-blue-300 dark:bg-blue-600 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
-          <div className="absolute top-40 right-20 w-72 h-72 bg-green-300 dark:bg-green-600 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
-          <div className="absolute -bottom-8 left-40 w-72 h-72 bg-purple-300 dark:bg-purple-600 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
-        </div>
-        {/* Floating Particles */}
-        <ParticleEffect />
-      </div>
-
+      {backgroundComponent}
       {/* Route-based rendering with Suspense for lazy-loaded components */}
       <Suspense fallback={<LoadingScreen />}>
         {currentView === 'landing' && (
           <LandingPage onGetStarted={handleGetStarted} />
         )}
-
         {currentView === 'user-selection' && (
           <UserSelection onSelectUserType={handleUserTypeSelection} />
         )}
-
         {currentView === 'public-form' && (
           <>
             <Header userType="public" />
@@ -186,24 +178,20 @@ function AppContent() {
             <Footer />
           </>
         )}
-
         {currentView === 'public-dashboard' && (
           <PublicDashboard 
             onBackToHome={handlePublicBackToHome}
             onSubmitAgain={handlePublicSubmitAgain}
           />
         )}
-
         {currentView === 'auth' && (
           <AuthPage 
             onAuthSuccess={handleAuthSuccess}
             onBackToSelection={handleBackToSelection}
           />
         )}
-
         {currentView === 'pharmacist-dashboard' && user && (
           <PharmacistDashboard 
-            pharmacist={user}
             onLogout={handleLogout}
           />
         )}

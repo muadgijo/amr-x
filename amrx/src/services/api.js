@@ -7,17 +7,8 @@ class ApiError extends Error {
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
-    this.retryable = status >= 500 || status === 429;
   }
 }
-
-// Retry configuration
-const RETRY_CONFIG = {
-  maxRetries: 3,
-  baseDelay: 1000,
-  maxDelay: 10000,
-  retryableStatuses: [408, 429, 500, 502, 503, 504]
-};
 
 class ApiService {
   static getAuthHeaders() {
@@ -25,7 +16,7 @@ class ApiService {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   }
 
-  static async request(endpoint, options = {}, retryCount = 0) {
+  static async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
       headers: {
@@ -36,46 +27,13 @@ class ApiService {
       ...options,
     };
 
-    console.log(`Making API request to: ${url}`, { 
-      method: config.method || 'GET',
-      retryCount,
-      hasAuth: !!config.headers.Authorization 
-    });
-
     try {
       const response = await fetch(url, config);
-      console.log('Response status:', response.status);
       
       // Handle authentication errors
       if (response.status === 401) {
         ApiService.handleAuthError();
         throw new ApiError('Authentication failed', 401);
-      }
-
-      // Handle rate limiting
-      if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After');
-        const delay = (retryAfter ? parseInt(retryAfter) : 60) * 1000;
-        
-        if (retryCount < RETRY_CONFIG.maxRetries) {
-          console.log(`Rate limited. Retrying after ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return ApiService.request(endpoint, options, retryCount + 1);
-        }
-        
-        throw new ApiError('Rate limit exceeded', 429);
-      }
-
-      // Handle server errors with retry logic
-      if (response.status >= 500 && retryCount < RETRY_CONFIG.maxRetries) {
-        const delay = Math.min(
-          RETRY_CONFIG.baseDelay * Math.pow(2, retryCount),
-          RETRY_CONFIG.maxDelay
-        );
-        
-        console.log(`Server error ${response.status}. Retrying after ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return ApiService.request(endpoint, options, retryCount + 1);
       }
 
       let data;
@@ -86,8 +44,6 @@ class ApiService {
       } else {
         data = await response.text();
       }
-      
-      console.log('Response data:', data);
       
       if (!response.ok) {
         throw new ApiError(
@@ -100,21 +56,11 @@ class ApiService {
       return data;
     } catch (error) {
       console.error(`API Error (${endpoint}):`, error);
-      
-      // Don't retry if it's not a retryable error
-      if (!error.retryable && retryCount < RETRY_CONFIG.maxRetries) {
-        console.log('Non-retryable error, but attempting retry...');
-        const delay = RETRY_CONFIG.baseDelay * Math.pow(2, retryCount);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return ApiService.request(endpoint, options, retryCount + 1);
-      }
-      
       throw error;
     }
   }
 
   static handleAuthError() {
-    console.log('Handling authentication error...');
     localStorage.removeItem('pharmacistToken');
     localStorage.removeItem('pharmacistData');
     
@@ -137,20 +83,13 @@ class ApiService {
       const expirationTime = payload.exp * 1000; // Convert to milliseconds
       return Date.now() < expirationTime;
     } catch (error) {
-      console.error('Token validation error:', error);
+      console.warn('Token validation failed:', error);
       return false;
     }
   }
 
-  static refreshToken() {
-    // Implement token refresh logic here
-    // This would typically call a refresh endpoint
-    console.log('Token refresh not implemented yet');
-  }
-
   // Public API endpoints
   static async submitPublicData(formData) {
-    console.log('Submitting public data:', formData);
     return ApiService.request('/api/public', {
       method: 'POST',
       body: JSON.stringify(formData),
@@ -196,29 +135,78 @@ class ApiService {
     const formData = new FormData();
     formData.append('file', file);
 
-    return ApiService.request(endpoint, {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config = {
       method: 'POST',
       headers: {
         ...ApiService.getAuthHeaders(),
-        // Don't set Content-Type for FormData
       },
       body: formData,
-    });
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      if (response.status === 401) {
+        ApiService.handleAuthError();
+        throw new ApiError('Authentication failed', 401);
+      }
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new ApiError(
+          data.error || data.message || `Upload failed! status: ${response.status}`,
+          response.status,
+          data.code
+        );
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('File upload error:', error);
+      throw error;
+    }
   }
 
   static async batchUpload(files, endpoint = '/api/batch-upload') {
     const formData = new FormData();
     files.forEach((file, index) => {
-      formData.append(`file${index}`, file);
+      formData.append(`file_${index}`, file);
     });
 
-    return ApiService.request(endpoint, {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config = {
       method: 'POST',
       headers: {
         ...ApiService.getAuthHeaders(),
       },
       body: formData,
-    });
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      if (response.status === 401) {
+        ApiService.handleAuthError();
+        throw new ApiError('Authentication failed', 401);
+      }
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new ApiError(
+          data.error || data.message || `Batch upload failed! status: ${response.status}`,
+          response.status,
+          data.code
+        );
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Batch upload error:', error);
+      throw error;
+    }
   }
 
   // Utility methods
@@ -240,5 +228,4 @@ class ApiService {
   }
 }
 
-export default ApiService;
-export { ApiError }; 
+export default ApiService; 
