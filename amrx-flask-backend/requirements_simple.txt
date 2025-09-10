@@ -1,0 +1,19 @@
+# AMR-X Backend - Simplified Requirements
+# Core Flask dependencies
+Flask==3.0.0
+Flask-CORS==4.0.0
+
+# Authentication
+PyJWT==2.8.0
+
+# Environment management
+python-dotenv==1.0.0
+
+# Supabase integration
+supabase==2.3.4
+
+# Production server
+gunicorn==21.2.0
+
+# Optional: For enhanced logging
+structlog==23.2.0

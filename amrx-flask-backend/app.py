@@ -43,17 +43,14 @@ JWT_EXPIRATION = 24 * 60 * 60  # 24 hours
 # Use Flask app config for secret key if available
 JWT_SECRET = os.getenv('JWT_SECRET_KEY', secrets.token_hex(32))
 
-# Configure CORS for production and development
-CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:5173').split(',')
-CORS(app, origins=CORS_ORIGINS, supports_credentials=True)
+# Simple CORS configuration
+CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173'], supports_credentials=True)
 
-# Configure rate limiting with more granular settings
+# Simple rate limiting
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
-    strategy="fixed-window"
+    default_limits=["1000 per day", "100 per hour"]
 )
 
 # Security: Input validation patterns
@@ -601,12 +598,8 @@ def health_options():
 
 @app.after_request
 def after_request_func(response):
-    # Allow requests from both development ports
-    origin = request.headers.get('Origin')
-    if origin in ['http://localhost:5173', 'http://localhost:5174']:
-        response.headers['Access-Control-Allow-Origin'] = origin
-    else:
-        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+    # Simple CORS headers
+    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     response.headers['Access-Control-Allow-Credentials'] = 'true'

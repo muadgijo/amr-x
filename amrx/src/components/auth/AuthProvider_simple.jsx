@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import ApiService from '../../services/api';
+import ApiService from '../../services/api_simple';
 import { LoadingScreen } from '../LoadingScreen';
 
 const AuthContext = createContext();
@@ -27,9 +27,7 @@ export const AuthProvider = ({ children }) => {
         if (token && userData && ApiService.isAuthenticated()) {
           const parsedUser = JSON.parse(userData);
           setUser(parsedUser);
-          console.log('User logged in:', parsedUser.email);
         } else {
-          // Clear invalid/expired data
           ApiService.clearAuth();
         }
       } catch (error) {
@@ -52,7 +50,6 @@ export const AuthProvider = ({ children }) => {
       const response = await ApiService.loginPharmacist(credentials);
       
       if (response.success && response.token && response.pharmacist) {
-        // Save to localStorage
         localStorage.setItem('pharmacistToken', response.token);
         localStorage.setItem('pharmacistData', JSON.stringify(response.pharmacist));
         setUser(response.pharmacist);
@@ -77,12 +74,8 @@ export const AuthProvider = ({ children }) => {
       
       const response = await ApiService.registerPharmacist(userData);
       
-      if (response.success && response.token && response.pharmacist) {
-        // Save to localStorage
-        localStorage.setItem('pharmacistToken', response.token);
-        localStorage.setItem('pharmacistData', JSON.stringify(response.pharmacist));
-        setUser(response.pharmacist);
-        return { success: true, user: response.pharmacist };
+      if (response.success) {
+        return { success: true, message: response.message };
       } else {
         throw new Error(response.error || 'Registration failed');
       }
